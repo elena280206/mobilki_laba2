@@ -1,0 +1,26 @@
+<resources>
+    <string name="language">Language</string>
+    <string name="language_russian" translatable="false">Русский</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="app_name">Tyaga: Workout diary</string>
+    <string name="screen_description">Record a set from your workout</string>
+    <string name="exercise">Exercise</string>
+    <string name="squat">Squat</string>
+    <string name="bench_press">Bench press</string>
+    <string name="deadlift">Deadlift</string>
+    <string name="weight">Weight, kg</string>
+    <string name="repetitions">Repetitions</string>
+    <string name="weight_error">Enter a weight greater than zero</string>
+    <string name="repetitions_error">Enter a positive whole number</string>
+    <string name="set_completed">Set completed</string>
+    <string name="save_set">Save set</string>
+    <string name="last_set">Last saved set</string>
+    <string name="weight_value">%1$s kg</string>
+    <string name="repetitions_value">Reps: %1$s</string>
+    <string name="completed">Completed</string>
+    <string name="planned">Planned</string>
+    <string name="saved_message">Set saved on this screen</string>
+    <string name="storage_notice">Only the last set is kept on this screen. A full workout history is not available yet.</string>
+    <string name="workout_history">Workout history</string>
+    <string name="not_implemented">This feature is not implemented yet</string>
+</resources>
