@@ -1,0 +1,248 @@
+package com.example.mobile2lab
+
+import android.graphics.Color
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.example.mobile2lab.ui.theme.Mobile2LabTheme
+import kotlinx.coroutines.launch
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        )
+        // Критерий 1: dynamicColor=false выбирает свою палитру. В Theme.kt при true на Android 12+ доступны системные цвета; на старых версиях — своя схема. Сейчас тема только светлая.
+        setContent { Mobile2LabTheme(dynamicColor = false) { WorkoutScreen() } }
+    }
+}
+
+fun interface PlaceholderNotifier {
+    fun notifyPlaceholder()
+}
+
+val LocalPlaceholderNotifier = staticCompositionLocalOf<PlaceholderNotifier> {
+    error("PlaceholderNotifier is not provided")
+}
+
+@Composable
+fun WorkoutScreen() {
+    // Критерий 5: rememberSaveable восстанавливает состояние после пересоздания Activity (например, поворота). Изменение mutableState обновляет интерфейс.
+    var exercise by rememberSaveable { mutableIntStateOf(0) }
+    var weight by rememberSaveable { mutableStateOf("") }
+    var repetitions by rememberSaveable { mutableStateOf("") }
+    var completed by rememberSaveable { mutableStateOf(false) }
+    // Снимок последнего подхода: -1 означает отсутствие сохранения. Это не постоянное хранение в базе данных.
+    var savedExercise by rememberSaveable { mutableIntStateOf(-1) }
+    var savedWeight by rememberSaveable { mutableStateOf("") }
+    var savedRepetitions by rememberSaveable { mutableStateOf("") }
+    var savedCompleted by rememberSaveable { mutableStateOf(false) }
+    var showErrors by rememberSaveable { mutableStateOf(false) }
+
+    // Критерий 4: вместо текстов используются ID ресурсов. Переводы находятся в values/strings.xml и values-ru/strings.xml.
+    val exercises = listOf(R.string.squat, R.string.bench_press, R.string.deadlift)
+    // Валидация: заменяем запятую точкой; проверяем, что вес — конечное число больше нуля, повторения — положительное целое.
+    val parsedWeight = weight.replace(',', '.').toDoubleOrNull()
+    val validWeight = parsedWeight != null && parsedWeight.isFinite() && parsedWeight > 0
+    val validRepetitions = (repetitions.toIntOrNull() ?: 0) > 0
+    // Критерий 5: remember сохраняет объект управления Snackbar между рекомпозициями.
+    val snackbarHostState = remember { SnackbarHostState() }
+    // Корутины запускаются через scope.launch, не блокируя UI; область отменяется при удалении из композиции.
+    val scope = rememberCoroutineScope()
+    // Критерий 4: stringResource получает перевод уведомления для текущей локали.
+    val placeholderMessage = stringResource(R.string.not_implemented)
+    val savedMessage = stringResource(R.string.saved_message)
+    // Обработчик закрывает предыдущее уведомление и показывает сообщение о функции-заглушке.
+    val notifier = remember(placeholderMessage, scope, snackbarHostState) {
+        PlaceholderNotifier {
+            scope.launch {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(placeholderMessage, withDismissAction = true)
+            }
+        }
+    }
+
+    // Передаём обработчик вниз по дереву интерфейса через CompositionLocal.
+    CompositionLocalProvider(LocalPlaceholderNotifier provides notifier) {
+        // SnackbarHost отображает уведомления внизу экрана.
+        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+            // verticalScroll включает прокрутку при переполнении. Критерий 3 частично: отступы заданы в dp прямо здесь, общего Spacing.kt нет.
+            Column(
+                modifier = Modifier.fillMaxSize().padding(padding)
+                    .verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Критерий 3: типографика берётся из AppTypography (Type.kt) через MaterialTheme. Собственные Shapes не настроены.
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
+                LanguageSwitch()
+                Text(
+                    stringResource(R.string.screen_description),
+                    style = MaterialTheme.typography.bodyLarge,
+                    // Критерий 2: второстепенный текст использует семантическую роль цвета вместо конкретного HEX.
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider()
+                Text(stringResource(R.string.exercise), style = MaterialTheme.typography.titleMedium)
+                // Нажатие чипа меняет индекс упражнения; selected отражает выбор.
+                exercises.forEachIndexed { index, title ->
+                    FilterChip(
+                        selected = exercise == index,
+                        onClick = { exercise = index },
+                        label = { Text(stringResource(title)) }
+                    )
+                }
+                // Критерии 2 и 5: value/onValueChange связывают поле с состоянием; isError включает цвета ошибок Material. Тип клавиатуры не заменяет валидацию.
+                OutlinedTextField(
+                    value = weight,
+                    onValueChange = { weight = it },
+                    label = { Text(stringResource(R.string.weight)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    isError = showErrors && !validWeight,
+                    supportingText = {
+                        if (showErrors && !validWeight) Text(stringResource(R.string.weight_error))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                // Критерии 2 и 5: value/onValueChange связывают поле с состоянием; isError включает цвета ошибок Material. Тип клавиатуры не заменяет валидацию.
+                OutlinedTextField(
+                    value = repetitions,
+                    onValueChange = { repetitions = it },
+                    label = { Text(stringResource(R.string.repetitions)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    isError = showErrors && !validRepetitions,
+                    supportingText = {
+                        if (showErrors && !validRepetitions) Text(stringResource(R.string.repetitions_error))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.set_completed), modifier = Modifier.weight(1f))
+                    Switch(checked = completed, onCheckedChange = { completed = it })
+                }
+                Spacer(Modifier.height(4.dp))
+                // Проверяем ввод, копируем данные в saved-переменные и показываем Snackbar через корутину.
+                Button(
+                    onClick = {
+                        showErrors = true
+                        if (validWeight && validRepetitions) {
+                            savedExercise = exercise
+                            savedWeight = weight
+                            savedRepetitions = repetitions
+                            savedCompleted = completed
+                            showErrors = false
+                            scope.launch { snackbarHostState.showSnackbar(savedMessage) }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.save_set)) }
+                // Критерий 5 частично: обычный if показывает карточку. AnimatedVisibility и animateColorAsState здесь не реализованы.
+                if (savedExercise >= 0) {
+                    HorizontalDivider()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        // Критерий 2: явно задаём фон surfaceVariant и содержимое onSurfaceVariant из активной палитры.
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.last_set), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(exercises[savedExercise]), style = MaterialTheme.typography.titleLarge)
+                            Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                                // Критерий 4: подстановка данных в переведённый шаблон, например %1$s кг.
+                                Text(stringResource(R.string.weight_value, savedWeight))
+                                VerticalDivider(Modifier.padding(horizontal = 12.dp))
+                                Text(stringResource(R.string.repetitions_value, savedRepetitions))
+                            }
+                            Text(
+                                stringResource(if (savedCompleted) R.string.completed else R.string.planned),
+                                // Критерий 2: статус выделяется акцентом primary.
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                Text(stringResource(R.string.storage_notice), style = MaterialTheme.typography.bodySmall)
+                WorkoutHistoryButton()
+            }
+        }
+    }
+}
+
+@Composable
+// Критерий 4: переключение языка приложения, а не языка всего устройства.
+private fun LanguageSwitch() {
+    val isEnglish = LocalConfiguration.current.locales[0].language != "ru"
+    val languageLabel = stringResource(R.string.language)
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(languageLabel, style = MaterialTheme.typography.titleMedium)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(stringResource(R.string.language_russian))
+            Switch(
+                checked = isEnglish,
+                onCheckedChange = { english ->
+                    // Новая локаль обычно пересоздаёт Activity: stringResource получает новые переводы, rememberSaveable восстанавливает данные.
+                    AppCompatDelegate.setApplicationLocales(
+                        LocaleListCompat.forLanguageTags(if (english) "en" else "ru")
+                    )
+                },
+                // Подпись для средств доступности, например TalkBack.
+                modifier = Modifier.semantics { contentDescription = languageLabel }
+            )
+            Text(stringResource(R.string.language_english))
+        }
+    }
+}
+
+@Composable
+// Критерий 5: кнопка вызывает обработчик Snackbar «Функция пока не реализована».
+private fun WorkoutHistoryButton() {
+    // Обработчик закрывает предыдущее уведомление и показывает сообщение о функции-заглушке.
+    val notifier = LocalPlaceholderNotifier.current
+    OutlinedButton(onClick = { notifier.notifyPlaceholder() }, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.workout_history))
+    }
+}
+
+// Предпросмотр русского или английского интерфейса в Android Studio.
+@Preview(showBackground = true, locale = "ru", name = "Light Russian")
+@Composable
+fun WorkoutLightPreview() {
+    Mobile2LabTheme(dynamicColor = false) { WorkoutScreen() }
+}
+
+// Предпросмотр русского или английского интерфейса в Android Studio.
+@Preview(showBackground = true, locale = "en", name = "Light English")
+@Composable
+fun WorkoutEnglishPreview() {
+    Mobile2LabTheme(dynamicColor = false) { WorkoutScreen() }
+}

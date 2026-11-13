@@ -1,26 +1,23 @@
 <resources>
-    <string name="language">Language</string>
-    <string name="language_russian" translatable="false">Русский</string>
-    <string name="language_english" translatable="false">English</string>
-    <string name="app_name">Tyaga: Workout diary</string>
-    <string name="screen_description">Record a set from your workout</string>
-    <string name="exercise">Exercise</string>
-    <string name="squat">Squat</string>
-    <string name="bench_press">Bench press</string>
-    <string name="deadlift">Deadlift</string>
-    <string name="weight">Weight, kg</string>
-    <string name="repetitions">Repetitions</string>
-    <string name="weight_error">Enter a weight greater than zero</string>
-    <string name="repetitions_error">Enter a positive whole number</string>
-    <string name="set_completed">Set completed</string>
-    <string name="save_set">Save set</string>
-    <string name="last_set">Last saved set</string>
-    <string name="weight_value">%1$s kg</string>
-    <string name="repetitions_value">Reps: %1$s</string>
-    <string name="completed">Completed</string>
-    <string name="planned">Planned</string>
-    <string name="saved_message">Set saved on this screen</string>
-    <string name="storage_notice">Only the last set is kept on this screen. A full workout history is not available yet.</string>
-    <string name="workout_history">Workout history</string>
-    <string name="not_implemented">This feature is not implemented yet</string>
+    <string name="app_name">Тяга: Дневник тренировок</string>
+    <string name="screen_description">Запишите подход из своей тренировки</string>
+    <string name="exercise">Упражнение</string>
+    <string name="squat">Приседания</string>
+    <string name="bench_press">Жим лёжа</string>
+    <string name="deadlift">Становая тяга</string>
+    <string name="weight">Вес, кг</string>
+    <string name="repetitions">Количество повторений</string>
+    <string name="weight_hint">Введите число больше нуля, например 12 или 12,5</string>
+    <string name="repetitions_hint">Введите целое число больше нуля</string>
+    <string name="set_completed">Подход выполнен</string>
+    <string name="save_set">Сохранить подход</string>
+    <string name="last_set">Последний сохранённый подход</string>
+    <string name="weight_value">%1$s кг</string>
+    <string name="repetitions_value">Повторения: %1$s</string>
+    <string name="completed">Выполнен</string>
+    <string name="planned">Запланирован</string>
+    <string name="saved_message">Подход сохранён на этом экране</string>
+    <string name="storage_notice">На экране хранится только последний подход. Полная история тренировок пока недоступна.</string>
+    <string name="workout_history">История тренировок</string>
+    <string name="not_implemented">Функция пока не реализована</string>
 </resources>

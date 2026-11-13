@@ -17,10 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -30,13 +29,19 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!AppCompatDelegate.getApplicationLocales().isEmpty) {
+            AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
-        setContent { Mobile2LabTheme { WorkoutScreen() } }
+        setContent { Mobile2LabTheme(dynamicColor = false) { WorkoutScreen() } }
     }
 }
+
+private val weightFormat = Regex("[0-9]+([.,][0-9]*)?|[.,][0-9]+")
+private val repetitionsFormat = Regex("[0-9]+")
 
 fun interface PlaceholderNotifier {
     fun notifyPlaceholder()
@@ -51,7 +56,7 @@ fun WorkoutScreen() {
     var exercise by rememberSaveable { mutableIntStateOf(0) }
     var weight by rememberSaveable { mutableStateOf("") }
     var repetitions by rememberSaveable { mutableStateOf("") }
-    var completed by rememberSaveable { mutableStateOf(false) }
+    var completed by rememberSaveable { mutableStateOf(true) }
     var savedExercise by rememberSaveable { mutableIntStateOf(-1) }
     var savedWeight by rememberSaveable { mutableStateOf("") }
     var savedRepetitions by rememberSaveable { mutableStateOf("") }
@@ -60,8 +65,10 @@ fun WorkoutScreen() {
 
     val exercises = listOf(R.string.squat, R.string.bench_press, R.string.deadlift)
     val parsedWeight = weight.replace(',', '.').toDoubleOrNull()
-    val validWeight = parsedWeight != null && parsedWeight.isFinite() && parsedWeight > 0
-    val validRepetitions = (repetitions.toIntOrNull() ?: 0) > 0
+    val validWeight = weightFormat.matches(weight) &&
+        parsedWeight != null && parsedWeight.isFinite() && parsedWeight > 0
+    val validRepetitions = repetitionsFormat.matches(repetitions) &&
+        (repetitions.toIntOrNull() ?: 0) > 0
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val placeholderMessage = stringResource(R.string.not_implemented)
@@ -83,7 +90,6 @@ fun WorkoutScreen() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-                LanguageSwitch()
                 Text(
                     stringResource(R.string.screen_description),
                     style = MaterialTheme.typography.bodyLarge,
@@ -91,13 +97,7 @@ fun WorkoutScreen() {
                 )
                 HorizontalDivider()
                 Text(stringResource(R.string.exercise), style = MaterialTheme.typography.titleMedium)
-                exercises.forEachIndexed { index, title ->
-                    FilterChip(
-                        selected = exercise == index,
-                        onClick = { exercise = index },
-                        label = { Text(stringResource(title)) }
-                    )
-                }
+                ExercisePicker(exercises, exercise) { exercise = it }
                 OutlinedTextField(
                     value = weight,
                     onValueChange = { weight = it },
@@ -106,7 +106,7 @@ fun WorkoutScreen() {
                     singleLine = true,
                     isError = showErrors && !validWeight,
                     supportingText = {
-                        if (showErrors && !validWeight) Text(stringResource(R.string.weight_error))
+                        Text(stringResource(R.string.weight_hint))
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -118,7 +118,7 @@ fun WorkoutScreen() {
                     singleLine = true,
                     isError = showErrors && !validRepetitions,
                     supportingText = {
-                        if (showErrors && !validRepetitions) Text(stringResource(R.string.repetitions_error))
+                        Text(stringResource(R.string.repetitions_hint))
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -143,7 +143,13 @@ fun WorkoutScreen() {
                 ) { Text(stringResource(R.string.save_set)) }
                 if (savedExercise >= 0) {
                     HorizontalDivider()
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(stringResource(R.string.last_set), style = MaterialTheme.typography.titleMedium)
                             Text(stringResource(exercises[savedExercise]), style = MaterialTheme.typography.titleLarge)
@@ -166,28 +172,54 @@ fun WorkoutScreen() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LanguageSwitch() {
-    val isEnglish = LocalConfiguration.current.locales[0].language != "ru"
-    val languageLabel = stringResource(R.string.language)
+private fun ExercisePicker(exercises: List<Int>, selected: Int, onSelect: (Int) -> Unit) {
+    val labels = exercises.map { stringResource(it) }
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val spacing = 6.dp
+    val density = LocalDensity.current
+    val labelsWidth = with(density) {
+        labels.sumOf { textMeasurer.measure(it, style = labelStyle).size.width }.toDp()
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(languageLabel, style = MaterialTheme.typography.titleMedium)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(stringResource(R.string.language_russian))
-            Switch(
-                checked = isEnglish,
-                onCheckedChange = { english ->
-                    AppCompatDelegate.setApplicationLocales(
-                        LocaleListCompat.forLanguageTags(if (english) "en" else "ru")
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val chipsWidth = labelsWidth + 24.dp * labels.size + spacing * (labels.size - 1)
+        if (chipsWidth <= maxWidth) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+                labels.forEachIndexed { index, label ->
+                    FilterChip(
+                        selected = selected == index,
+                        onClick = { onSelect(index) },
+                        label = { Text(label, maxLines = 1) }
                     )
-                },
-                modifier = Modifier.semantics { contentDescription = languageLabel }
-            )
-            Text(stringResource(R.string.language_english))
+                }
+            }
+        } else {
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                OutlinedTextField(
+                    value = labels[selected],
+                    onValueChange = {},
+                    readOnly = true,
+                    singleLine = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    labels.forEachIndexed { index, label ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                onSelect(index)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }

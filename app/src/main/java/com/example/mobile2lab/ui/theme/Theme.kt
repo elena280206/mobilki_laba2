@@ -47,7 +47,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun Mobile2LabTheme(
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

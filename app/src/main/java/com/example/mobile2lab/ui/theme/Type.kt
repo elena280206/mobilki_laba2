@@ -27,7 +27,6 @@ val displayFontFamily = FontFamily(
     )
 )
 
-// Стандартные стили Material 3, в которых заменяем только семейства шрифтов.
 val baseline = Typography()
 
 val AppTypography = Typography(
